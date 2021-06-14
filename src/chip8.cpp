@@ -1,10 +1,29 @@
 #include "chip8.h"
 
-Chip8::Chip8(){}
+Chip8::Chip8(){
+    memset(stack, 0, sizeof(stack));
+    memset(variableRegister, 0, sizeof(variableRegister));
+    memset(keypad, 0, sizeof(keypad));
+    memset(display, 0, sizeof(display));
+    memset(memory, 0, sizeof(memory));
+    delayTimer = 0;
+    soundTimer = 0;
+}
+
 Chip8::~Chip8(){}
 
-void Chip8::Initialise() {
+void Chip8::Initialise(char* name) {
     LoadFontsetToMemory();
+    LoadROM(name);
+}
+
+void Chip8::LoadROM(char* fname) {
+    FILE* f = fopen(fname, "rb");
+    fseek(f, 0, SEEK_END);
+    unsigned long size = ftell(f);
+    rewind(f);
+    fread(memory, 1, size, f);
+    fclose(f);
 }
 
 void Chip8::LoadFontsetToMemory() {
