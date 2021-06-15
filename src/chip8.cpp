@@ -8,6 +8,7 @@ Chip8::Chip8(){
     memset(memory, 0, sizeof(memory));
     delayTimer = 0;
     soundTimer = 0;
+    drawNeeded = false;
     I = 0;
     pc = 0;
     sp = 0;
@@ -18,6 +19,7 @@ Chip8::~Chip8(){}
 void Chip8::Initialise(char* name) {
     LoadFontsetToMemory();
     LoadROM(name);
+    std::srand(0);
 }
 
 void Chip8::LoadROM(char* fname) {
@@ -25,7 +27,11 @@ void Chip8::LoadROM(char* fname) {
     fseek(f, 0, SEEK_END);
     unsigned long size = ftell(f);
     rewind(f);
-    fread(memory, 1, size, f);
+    uint8_t buf [0x1000];
+    fread(buf, 1, size, f);
+    for(int i = 0; i < size; i++) {
+        memory[i + 0x200] = buf[i];
+    }
     fclose(f);
 }
 
@@ -34,63 +40,48 @@ void Chip8::Cycle() {
 }
 
 void Chip8::ExecuteInstruction() {
-    uint16_t opcode = static_cast<uint16_t>(memory[pc] << 8 | memory[pc + 1]);
-    switch(opcode) {
-        case 0x00E0:
-            memset(display, 0, sizeof(display));
-            drawNeeded = true;
-            break;
-        case 0x00EE:
-            sp -= 1;
-            pc = stack[sp];
-            break;
+    uint16_t opcode = static_cast<uint16_t>(memory[pc + 0x200] << 8 | memory[(pc + 0x200) + 1]);
+    uint16_t NNN = opcode & 0x0FFF;
+    uint16_t NN = opcode & 0x00FF;
+    uint16_t X = (opcode & 0x0F00) >> 8; 
+    uint16_t Y = (opcode & 0x00F0) >> 4;
+    switch(opcode & 0xF000) {
+        case 0x0000:
+            switch(opcode & 0x000F) {
+                case 0x0000:
+                    memset(display, 0, sizeof(display));
+                    drawNeeded = true;
+                    break;
+                case 0x000E:
+                    pc = stack[sp--];
+                    break;
+                default:
+                    std::cout << "Invalid opcode " << std::hex << opcode << std::endl;
+                    break;
+            }
         case 0x1000:
-            pc = opcode & 0x0FFF;
+            pc = NNN;
             break;
         case 0x2000:
-            stack[sp] = pc;
-            sp += 1;
-            pc = opcode & 0x0FFF;
+            stack[++sp] = pc;
+            pc = NNN;
             break;
         case 0x3000:
-        {
-            uint16_t X = opcode & 0x0F00 >> 8; // shift to lower nibbles
-            uint16_t NN = opcode & 0x00FF;
             if(V[X] == NN) pc += 2;
             break;
-        }
         case 0x4000:
-        {
-            uint16_t X = opcode & 0x0F00 >> 8; 
-            uint16_t NN = opcode & 0x00FF;
             if(V[X] != NN) pc += 2;
             break;
-        }
         case 0x5000:
-        {
-            uint16_t X = opcode & 0x0F00 >> 8; 
-            uint16_t Y = opcode & 0x00F0 >> 4;
             if(V[X] == V[Y]) pc += 2;
             break;
-        }
         case 0x6000:
-        {
-            uint16_t X = opcode & 0x0F00 >> 8;
-            uint16_t NN = opcode & 0x00FF;
             V[X] = NN;
             break;
-        }
         case 0x7000:
-        {
-            uint16_t X = opcode & 0x0F00 >> 8;
-            uint16_t NN = opcode & 0x00FF;
             V[X] += NN;
             break;
-        }
         case 0x8000:
-        {
-            uint16_t X = opcode & 0x0F00 >> 8;
-            uint16_t Y = opcode & 0x00F0 >> 4;
             switch(opcode & 0x000F) {   // logic / arthimetic instructions
                 case 0x0000:
                     V[X] = V[Y];
@@ -123,35 +114,22 @@ void Chip8::ExecuteInstruction() {
                     V[0xF] = V[X] >> 7;
                     V[X] <<= 1;
                     break;
+                default:
+                    std::cout << "Invalid opcode " << std::hex << opcode << std::endl;
+                    break;
             }
-            break;
-        }
         case 0x9000:
-        {
-            uint16_t X = opcode & 0x0F00 >> 8;
-            uint16_t Y = opcode & 0x00F0 >> 4;
             if(V[X] != V[Y]) pc += 2;
             break;
-        }
         case 0xA000:
-        {
-            uint16_t NNN = opcode & 0x0FFF;
             I = NNN;
             break;
-        }
         case 0xB000:
-        {
-            uint16_t NNN = opcode & 0x0FFF;
             pc = NNN + V[0];
             break;
-        }
         case 0xC000:
-        {
-            uint16_t X = opcode & 0x0F00 >> 8;
-            uint16_t mask = opcode & 0x00FF;
-            V[X] = (rand() % 0xFF + 1) & mask;
+            V[X] = (rand() % 0xFF + 1) & NN;
             break;
-        }
         /* 
          * Sprite drawing function.
          * 
@@ -165,19 +143,17 @@ void Chip8::ExecuteInstruction() {
          */    
         case 0xD000:
         {
-            uint16_t spriteX = opcode & 0x0F00 >> 8;
-            uint16_t spriteY = opcode & 0x00F0 >> 4;
             uint16_t height = opcode & 0x000F;
-            uint8_t width = 8;
             uint16_t pixel;
             V[0xF] = 0;
-            for(int y = 0; y < height; y++) {
+            for (uint8_t y = 0; y < height; ++y) {
                 pixel = memory[I + y];
-                for(int x = 0; x < width; x++) {
-                    // Read as a BCD
-                    if(pixel & (128 >> x) != 0) {
-                        if(display[(spriteX + x) + (spriteY + y) * 64]) V[0xF] = 1;
-                        display[(spriteX + x) + (spriteY + y) * 64] ^= 1;
+                //std::cout << "pixel" << pixel << std::endl;
+                for (uint8_t x = 0; x < 8; ++x) {
+                    if ((pixel & (0x80 >> x)) != 0)  {
+                        if (display[(V[X] + x + ((V[Y] + y) * 64))] == 1) V[0xF] = 1;
+                        display[V[X] + x + ((V[Y] + y) * 64)] ^= 1;
+                        //std::cout << +display[V[X] + x + ((V[Y] + y) * 64)] << std::endl;
                     }
                 }
             }
@@ -185,8 +161,6 @@ void Chip8::ExecuteInstruction() {
             break;
         }
         case 0xE000:
-        {
-            uint16_t X = opcode & 0x0F00 >> 8;
             switch(opcode & 0x00FF) {
                 case 0x009E:
                     if(keypad[V[X]] != 0) pc += 2;
@@ -194,12 +168,11 @@ void Chip8::ExecuteInstruction() {
                 case 0x00A1:
                     if(keypad[V[X]] == 0) pc += 2;
                     break;
+                default:
+                    std::cout << "Invalid opcode " << std::hex << opcode << std::endl;
+                    break;
             }
-            break;
-        }
         case 0xF000:
-        {
-            uint16_t X = opcode & 0x0F00 >> 8;
             switch(opcode & 0x00FF) {
                 case 0x0007:
                     V[X] = delayTimer;
@@ -225,8 +198,6 @@ void Chip8::ExecuteInstruction() {
                     break;
                 case 0x001E:
                     // set VF to 1 if overflow occurs
-                    V[0xF] = 0;
-                    if(I + V[X] > 0xFFF) V[0xF] = 1;
                     I += V[X];
                     break; 
                 case 0x0029:
@@ -250,11 +221,13 @@ void Chip8::ExecuteInstruction() {
                 case 0x0065:
                     for(int i = 0; i <= X; i++) { V[i] = memory[I + i]; }
                     break;
+                default:
+                    std::cout << "Invalid opcode " << std::hex << opcode << std::endl;
+                    break;
             }   
-        }
         default:
-            std::cout << "Unknown opcode" << std::endl;
-            return;
+            std::cout << "Invalid opcode " << std::hex << opcode << std::endl;
+            break;
     }
     if(delayTimer > 0) delayTimer--; 
     if(soundTimer > 0) soundTimer--; 
@@ -280,8 +253,7 @@ void Chip8::LoadFontsetToMemory() {
         0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
         0xF0, 0x80, 0xF0, 0x80, 0x80  // F
     };
-    uint8_t offset = 0x50; // fontset stored 0x50 -> 0x9F typically
     for(int i = 0; i < 80; i++) {
-        memory[i + offset] = fontset[i];
+        memory[i] = fontset[i];
     }
 }
