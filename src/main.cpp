@@ -1,13 +1,16 @@
 #define SDL_MAIN_HANDLED
 #include "chip8.h"
 
-int main(int argc, char *argv[]) { 
+int main(int argc, char *argv[]) {
+    const int baseWidth = 64; 
+    const int baseHeight = 32;
+    const int windowScale = 10; 
     SDL_Window* window =  NULL;
     SDL_Renderer* renderer = NULL;
     if(SDL_Init(SDL_INIT_EVERYTHING) < 0) {
         return 1; 
     }
-    window = SDL_CreateWindow("Chipper - CHIP8 Interpreter", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 640, 320, SDL_WINDOW_SHOWN);
+    window = SDL_CreateWindow("Chipper - CHIP8 Interpreter", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, (baseWidth * windowScale), (baseHeight * windowScale), SDL_WINDOW_SHOWN);
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
     SDL_RenderSetScale(renderer, 10, 10);
     Chip8* chip8 = new Chip8;
@@ -42,18 +45,18 @@ int main(int argc, char *argv[]) {
         }
 
         if(chip8->drawNeeded) {
-            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0xFF);
+            SDL_SetRenderDrawColor(renderer, 38, 109, 140, 0xFF);
             SDL_RenderClear(renderer);
-            SDL_SetRenderDrawColor(renderer, 0xFF, 0xFF, 0xFF, 0xFF);
-            for(int y = 0; y < 32; ++y) {
-                for(int x = 0; x < 64; ++x) {
-                    if(chip8->display[(y * 64) + x] != 0) SDL_RenderDrawPoint(renderer, x, y); 
+            SDL_SetRenderDrawColor(renderer, 10, 33, 43, 0xFF);
+            for(int y = 0; y < baseHeight; y++) {
+                for(int x = 0; x < baseWidth; x++) {
+                    if(chip8->display[(y * baseWidth) + x] != 0) SDL_RenderDrawPoint(renderer, x, y); 
                 }
             }
             SDL_RenderPresent(renderer);
             chip8->drawNeeded = false;
+            SDL_Delay(100);
         }
-        SDL_Delay(10);
     }
     return 0;
 }

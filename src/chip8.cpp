@@ -211,7 +211,7 @@ void Chip8::ExecuteInstruction() {
                     // 100s digit at I
                     // tens digit at I + 1
                     // ones digit at I + 2
-                    memory[I] = X / 100;
+                    memory[I] = V[X] / 100;
                     memory[I + 1] = (V[X] / 10) % 10;
                     memory[I + 2] = V[X] % 10;
                     break;
