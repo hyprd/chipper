@@ -213,7 +213,7 @@ void Chip8::ExecuteInstruction() {
                     // ones digit at I + 2
                     memory[I] = V[X] / 100;
                     memory[I + 1] = (V[X] / 10) % 10;
-                    memory[I + 2] = V[X] % 10;
+                    memory[I + 2] = (V[X] % 100) % 10;
                     break;
                 case 0x0055:
                     for(int i = 0; i <= X; i++) { memory[I + i] = V[i]; }
