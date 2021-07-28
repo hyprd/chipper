@@ -1,5 +1,5 @@
 # chipper
-Prints the IBM logo, but that's about it right now.
+Prints the IBM logo, that's about it right now.
 
 Add SDL2 directories in makefile.
 
